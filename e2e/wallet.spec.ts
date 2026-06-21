@@ -128,7 +128,22 @@ test("runs BPJS role workflows with real wallet transactions", async ({
     .getByLabel("Catatan")
     .fill("Transaksi dibuat dari Playwright injected wallet")
 
-  await page.getByRole("button", { name: "Simpan rekam medis" }).click()
+  const submitRecord = page.getByRole("button", {
+    name: "Simpan rekam medis",
+  })
+  await submitRecord.click()
+  await expect(
+    page.getByRole("button", { name: "Menyimpan rekam medis" })
+  ).toBeDisabled()
+  await expect(
+    page.getByText("Menyimpan rekam medis", { exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "Lihat di Blockscout" })
+  ).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText("Transaksi berhasil dikonfirmasi.")).toBeVisible({
+    timeout: 45_000,
+  })
   await expect(page.getByText("Rekam medis tersimpan")).toBeVisible({
     timeout: 45_000,
   })
