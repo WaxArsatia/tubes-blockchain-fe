@@ -85,7 +85,14 @@ export function AdminDashboard() {
             <Button
               type="submit"
               className="self-end"
-              disabled={!isAddress(targetAccount) || !bpjsId.trim()}
+              aria-label={
+                registerBpjs.isPending ? "Menyimpan nomor BPJS" : "Simpan"
+              }
+              disabled={
+                !isAddress(targetAccount) ||
+                !bpjsId.trim() ||
+                registerBpjs.isPending
+              }
             >
               Simpan
             </Button>
@@ -139,24 +146,34 @@ export function AdminDashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
-                          {roles.map((role) => (
-                            <label
-                              key={role}
-                              className="flex items-center gap-1 text-xs"
-                            >
-                              <Checkbox
-                                checked={user.roles.includes(role)}
-                                onCheckedChange={(checked) =>
-                                  setRole.mutate({
-                                    account: user.account,
-                                    role,
-                                    active: checked === true,
-                                  })
-                                }
-                              />
-                              {roleLabel(role)}
-                            </label>
-                          ))}
+                          {roles.map((role) => {
+                            const isPending =
+                              setRole.isPending &&
+                              setRole.variables.account.toLowerCase() ===
+                                user.account.toLowerCase() &&
+                              setRole.variables.role === role
+
+                            return (
+                              <label
+                                key={role}
+                                className="flex items-center gap-1 text-xs"
+                              >
+                                <Checkbox
+                                  aria-label={`${roleLabel(role)} untuk ${shortAddress(user.account)}${isPending ? " sedang diproses" : ""}`}
+                                  checked={user.roles.includes(role)}
+                                  disabled={isPending}
+                                  onCheckedChange={(checked) =>
+                                    setRole.mutate({
+                                      account: user.account,
+                                      role,
+                                      active: checked === true,
+                                    })
+                                  }
+                                />
+                                {roleLabel(role)}
+                              </label>
+                            )
+                          })}
                         </div>
                       </TableCell>
                     </TableRow>

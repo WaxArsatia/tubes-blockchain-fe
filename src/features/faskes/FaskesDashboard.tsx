@@ -47,6 +47,11 @@ export function FaskesDashboard({ account }: { account: Address }) {
   const [patient, setPatient] = useState("")
   const [label, setLabel] = useState("")
   const [fields, setFields] = useState<Record<string, string>>({})
+  const pendingAccessAction = approveAccess.isPending
+    ? { type: "approve" as const, ...approveAccess.variables }
+    : revokeAccess.isPending
+      ? { type: "revoke" as const, ...revokeAccess.variables }
+      : undefined
 
   const patients = useMemo(
     () =>
@@ -142,6 +147,11 @@ export function FaskesDashboard({ account }: { account: Address }) {
             <Button
               type="button"
               onClick={submitMedicalRecordForm}
+              aria-label={
+                submitRecord.isPending
+                  ? "Menyimpan rekam medis"
+                  : "Simpan rekam medis"
+              }
               disabled={
                 !isAddress(patient) || !label.trim() || submitRecord.isPending
               }
@@ -172,6 +182,7 @@ export function FaskesDashboard({ account }: { account: Address }) {
               onRevoke={(recordId, requester) =>
                 revokeAccess.mutate({ recordId, requester })
               }
+              pendingAction={pendingAccessAction}
             />
           )}
         </CardContent>
@@ -180,14 +191,22 @@ export function FaskesDashboard({ account }: { account: Address }) {
   )
 }
 
-function AccessTable({
+export type PendingAccessAction = {
+  type: "approve" | "revoke"
+  recordId: bigint
+  requester: Address
+}
+
+export function AccessTable({
   rows,
   onApprove,
   onRevoke,
+  pendingAction,
 }: {
   rows: AccessRequestRows
   onApprove: (recordId: bigint, requester: Address) => void
   onRevoke: (recordId: bigint, requester: Address) => void
+  pendingAction?: PendingAccessAction
 }) {
   return (
     <div className="overflow-x-auto">
@@ -201,38 +220,59 @@ function AccessTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((request) => (
-            <TableRow key={`${request.recordId}-${request.requester}`}>
-              <TableCell>{safeDecode(request.recordLabel)}</TableCell>
-              <TableCell className="font-mono text-xs">
-                {shortAddress(request.requester)}
-              </TableCell>
-              <TableCell>
-                <Badge variant={request.revoked ? "destructive" : "secondary"}>
-                  {request.revoked
-                    ? "Dicabut"
-                    : request.patientApproved && request.faskesApproved
-                      ? "Disetujui"
-                      : "Menunggu"}
-                </Badge>
-              </TableCell>
-              <TableCell className="space-x-2">
-                <Button
-                  size="sm"
-                  onClick={() => onApprove(request.recordId, request.requester)}
-                >
-                  Setujui
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onRevoke(request.recordId, request.requester)}
-                >
-                  Cabut
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
+          {rows.map((request) => {
+            const isPending =
+              pendingAction?.recordId === request.recordId &&
+              pendingAction.requester.toLowerCase() ===
+                request.requester.toLowerCase()
+
+            return (
+              <TableRow key={`${request.recordId}-${request.requester}`}>
+                <TableCell>{safeDecode(request.recordLabel)}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {shortAddress(request.requester)}
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={request.revoked ? "destructive" : "secondary"}
+                  >
+                    {request.revoked
+                      ? "Dicabut"
+                      : request.patientApproved && request.faskesApproved
+                        ? "Disetujui"
+                        : "Menunggu"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="space-x-2">
+                  <Button
+                    size="sm"
+                    aria-label={
+                      isPending && pendingAction.type === "approve"
+                        ? `Menyetujui akses rekam medis ${request.recordId}`
+                        : `Setujui akses rekam medis ${request.recordId}`
+                    }
+                    disabled={isPending}
+                    onClick={() =>
+                      onApprove(request.recordId, request.requester)
+                    }
+                  >
+                    Setujui
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    aria-label={`Cabut akses rekam medis ${request.recordId}`}
+                    disabled={isPending}
+                    onClick={() =>
+                      onRevoke(request.recordId, request.requester)
+                    }
+                  >
+                    Cabut
+                  </Button>
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

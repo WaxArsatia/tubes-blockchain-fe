@@ -31,6 +31,11 @@ export function PasienDashboard({ account }: { account: Address }) {
   const revokeAccess = useRevokeAccess()
   const [selectedRecord, setSelectedRecord] = useState<bigint | null>(null)
   const recordDetail = useMedicalRecord(selectedRecord, account)
+  const pendingAccessAction = approveAccess.isPending
+    ? { type: "approve" as const, ...approveAccess.variables }
+    : revokeAccess.isPending
+      ? { type: "revoke" as const, ...revokeAccess.variables }
+      : undefined
 
   const requestsForPatient = useMemo(
     () =>
@@ -160,50 +165,69 @@ export function PasienDashboard({ account }: { account: Address }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requestsForPatient.map((request) => (
-                    <TableRow key={`${request.recordId}-${request.requester}`}>
-                      <TableCell>{safeDecode(request.recordLabel)}</TableCell>
-                      <TableCell>{nameFor(request.requester)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            request.revoked ? "destructive" : "secondary"
-                          }
-                        >
-                          {request.revoked
-                            ? "Dicabut"
-                            : request.patientApproved && request.faskesApproved
-                              ? "Disetujui"
-                              : "Menunggu"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            approveAccess.mutate({
-                              recordId: request.recordId,
-                              requester: request.requester,
-                            })
-                          }
-                        >
-                          Setujui
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            revokeAccess.mutate({
-                              recordId: request.recordId,
-                              requester: request.requester,
-                            })
-                          }
-                        >
-                          Cabut
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {requestsForPatient.map((request) => {
+                    const isPending =
+                      pendingAccessAction?.recordId === request.recordId &&
+                      pendingAccessAction.requester.toLowerCase() ===
+                        request.requester.toLowerCase()
+
+                    return (
+                      <TableRow
+                        key={`${request.recordId}-${request.requester}`}
+                      >
+                        <TableCell>{safeDecode(request.recordLabel)}</TableCell>
+                        <TableCell>{nameFor(request.requester)}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              request.revoked ? "destructive" : "secondary"
+                            }
+                          >
+                            {request.revoked
+                              ? "Dicabut"
+                              : request.patientApproved &&
+                                  request.faskesApproved
+                                ? "Disetujui"
+                                : "Menunggu"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="space-x-2">
+                          <Button
+                            size="sm"
+                            aria-label={
+                              isPending &&
+                              pendingAccessAction.type === "approve"
+                                ? `Menyetujui akses rekam medis ${request.recordId}`
+                                : `Setujui akses rekam medis ${request.recordId}`
+                            }
+                            disabled={isPending}
+                            onClick={() =>
+                              approveAccess.mutate({
+                                recordId: request.recordId,
+                                requester: request.requester,
+                              })
+                            }
+                          >
+                            Setujui
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            aria-label={`Cabut akses rekam medis ${request.recordId}`}
+                            disabled={isPending}
+                            onClick={() =>
+                              revokeAccess.mutate({
+                                recordId: request.recordId,
+                                requester: request.requester,
+                              })
+                            }
+                          >
+                            Cabut
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
