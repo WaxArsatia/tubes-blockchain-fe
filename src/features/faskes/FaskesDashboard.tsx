@@ -60,6 +60,18 @@ export function FaskesDashboard({ account }: { account: Address }) {
       ),
     [accessRequests.data, account]
   )
+  const submitMedicalRecordForm = () => {
+    if (!isAddress(patient) || !label.trim()) return
+    submitRecord.mutate({
+      patient: patient,
+      faskes: account,
+      label: label.trim(),
+      fields: fieldNames.map((name) => ({
+        label: name,
+        value: fields[name] ?? "",
+      })),
+    })
+  }
 
   return (
     <div className="grid gap-4">
@@ -79,16 +91,7 @@ export function FaskesDashboard({ account }: { account: Address }) {
             className="grid gap-3"
             onSubmit={(event) => {
               event.preventDefault()
-              if (!isAddress(patient) || !label.trim()) return
-              submitRecord.mutate({
-                patient: patient,
-                faskes: account,
-                label: label.trim(),
-                fields: fieldNames.map((name) => ({
-                  label: name,
-                  value: fields[name] ?? "",
-                })),
-              })
+              submitMedicalRecordForm()
             }}
           >
             <UserCombobox
@@ -109,9 +112,10 @@ export function FaskesDashboard({ account }: { account: Address }) {
             <div className="grid gap-3 md:grid-cols-2">
               {fieldNames.map((name) => (
                 <div key={name} className="grid gap-2">
-                  <Label>{name}</Label>
+                  <Label htmlFor={`record-${name}`}>{name}</Label>
                   {name === "Catatan" ? (
                     <Textarea
+                      id={`record-${name}`}
                       value={fields[name] ?? ""}
                       onChange={(event) =>
                         setFields((current) => ({
@@ -122,6 +126,7 @@ export function FaskesDashboard({ account }: { account: Address }) {
                     />
                   ) : (
                     <Input
+                      id={`record-${name}`}
                       value={fields[name] ?? ""}
                       onChange={(event) =>
                         setFields((current) => ({
@@ -135,6 +140,8 @@ export function FaskesDashboard({ account }: { account: Address }) {
               ))}
             </div>
             <Button
+              type="button"
+              onClick={submitMedicalRecordForm}
               disabled={
                 !isAddress(patient) || !label.trim() || submitRecord.isPending
               }

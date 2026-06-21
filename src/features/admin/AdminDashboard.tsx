@@ -83,6 +83,7 @@ export function AdminDashboard() {
               />
             </div>
             <Button
+              type="submit"
               className="self-end"
               disabled={!isAddress(targetAccount) || !bpjsId.trim()}
             >

@@ -26,6 +26,7 @@ export function UserCombobox({
   placeholder = "Cari wallet atau identitas",
   label = "Wallet",
 }: UserComboboxProps) {
+  const inputId = `user-combobox-${label.toLowerCase().replace(/\s+/g, "-")}`
   const options = users.map((user) => ({
     account: user.account,
     name: user.decodedIdentity || user.identity || shortAddress(user.account),
@@ -34,8 +35,9 @@ export function UserCombobox({
 
   return (
     <div className="grid gap-2">
-      <Label>{label}</Label>
+      <Label htmlFor={inputId}>{label}</Label>
       <Input
+        id={inputId}
         list="bpjs-user-options"
         placeholder={placeholder}
         value={value}

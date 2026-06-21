@@ -12,5 +12,21 @@ export default defineConfig({
     reuseExistingServer: true,
     url: "http://127.0.0.1:3000",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testMatch: /app\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "wallet-local",
+      testMatch: /wallet\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "wallet-real",
+      testMatch: /wallet\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
 })

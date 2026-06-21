@@ -15,3 +15,5 @@ todos.json
 *.tsbuildinfo
 
 test-results
+.cache-synpress
+e2e/.state

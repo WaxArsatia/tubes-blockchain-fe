@@ -43,7 +43,10 @@ export function SelfRegistration() {
               placeholder="Contoh: Klinik Sehat Sentosa"
             />
           </div>
-          <Button disabled={!identity.trim() || registerUser.isPending}>
+          <Button
+            type="submit"
+            disabled={!identity.trim() || registerUser.isPending}
+          >
             Simpan identitas
           </Button>
         </form>

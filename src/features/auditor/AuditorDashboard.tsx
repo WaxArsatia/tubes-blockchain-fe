@@ -124,6 +124,7 @@ export function AuditorDashboard() {
               />
             </div>
             <Button
+              type="submit"
               className="self-end"
               disabled={!recordId || requestAccess.isPending}
             >

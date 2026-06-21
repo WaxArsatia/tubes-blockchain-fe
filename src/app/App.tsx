@@ -26,6 +26,7 @@ const rolePriority: Role[] = ["admin", "faskes", "pasien", "auditor"]
 export function App() {
   const wallet = useWallet()
   const users = useUsers()
+  const [mounted, setMounted] = useState(false)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
 
   const currentUser = useMemo(
@@ -38,10 +39,25 @@ export function App() {
   const roles = currentUser ? getActiveRoles(currentUser) : []
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
     if (!selectedRole || !roles.includes(selectedRole)) {
       setSelectedRole(rolePriority.find((role) => roles.includes(role)) ?? null)
     }
   }, [roles, selectedRole])
+
+  if (!mounted) {
+    return (
+      <CenteredCard
+        title="BPJS Rekam Medis"
+        description="Memuat status wallet dan jaringan."
+      >
+        <p className="text-sm text-muted-foreground">Memuat aplikasi...</p>
+      </CenteredCard>
+    )
+  }
 
   if (!wallet.hasProvider) {
     return (
