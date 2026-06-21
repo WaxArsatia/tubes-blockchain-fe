@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { EmptyState, LoadingRows } from "@/components/shared/StateViews"
 import { UserCombobox } from "@/components/shared/UserCombobox"
+import { AccessActionButtons } from "@/features/shared/AccessActionButtons"
 import {
   useAccessRequests,
   useApproveAccess,
@@ -26,7 +27,13 @@ import {
   useSubmitMedicalRecord,
   useUsers,
 } from "@/hooks/useBpjsContract"
+import {
+  accessActionKey,
+  usePendingActionKeys,
+} from "@/hooks/usePendingActionKeys"
 import { safeDecode, shortAddress } from "@/lib/users"
+
+export { accessActionKey } from "@/hooks/usePendingActionKeys"
 
 const fieldNames = [
   "Tanggal kunjungan",
@@ -37,6 +44,7 @@ const fieldNames = [
   "Obat",
   "Catatan",
 ]
+const emptyPendingKeys = new Set<string>()
 
 export function FaskesDashboard({ account }: { account: Address }) {
   const usersQuery = useUsers()
@@ -47,11 +55,7 @@ export function FaskesDashboard({ account }: { account: Address }) {
   const [patient, setPatient] = useState("")
   const [label, setLabel] = useState("")
   const [fields, setFields] = useState<Record<string, string>>({})
-  const pendingAccessAction = approveAccess.isPending
-    ? { type: "approve" as const, ...approveAccess.variables }
-    : revokeAccess.isPending
-      ? { type: "revoke" as const, ...revokeAccess.variables }
-      : undefined
+  const accessActions = usePendingActionKeys()
 
   const patients = useMemo(
     () =>
@@ -176,13 +180,23 @@ export function FaskesDashboard({ account }: { account: Address }) {
           ) : (
             <AccessTable
               rows={inbox}
-              onApprove={(recordId, requester) =>
-                approveAccess.mutate({ recordId, requester })
-              }
-              onRevoke={(recordId, requester) =>
-                revokeAccess.mutate({ recordId, requester })
-              }
-              pendingAction={pendingAccessAction}
+              onApprove={(recordId, requester) => {
+                const key = accessActionKey(recordId, requester)
+                void accessActions
+                  .run(key, () =>
+                    approveAccess.mutateAsync({ recordId, requester })
+                  )
+                  .catch(() => undefined)
+              }}
+              onRevoke={(recordId, requester) => {
+                const key = accessActionKey(recordId, requester)
+                void accessActions
+                  .run(key, () =>
+                    revokeAccess.mutateAsync({ recordId, requester })
+                  )
+                  .catch(() => undefined)
+              }}
+              pendingActionKeys={accessActions.pendingKeys}
             />
           )}
         </CardContent>
@@ -191,22 +205,16 @@ export function FaskesDashboard({ account }: { account: Address }) {
   )
 }
 
-export type PendingAccessAction = {
-  type: "approve" | "revoke"
-  recordId: bigint
-  requester: Address
-}
-
 export function AccessTable({
   rows,
   onApprove,
   onRevoke,
-  pendingAction,
+  pendingActionKeys = emptyPendingKeys,
 }: {
   rows: AccessRequestRows
   onApprove: (recordId: bigint, requester: Address) => void
   onRevoke: (recordId: bigint, requester: Address) => void
-  pendingAction?: PendingAccessAction
+  pendingActionKeys?: ReadonlySet<string>
 }) {
   return (
     <div className="overflow-x-auto">
@@ -221,10 +229,9 @@ export function AccessTable({
         </TableHeader>
         <TableBody>
           {rows.map((request) => {
-            const isPending =
-              pendingAction?.recordId === request.recordId &&
-              pendingAction.requester.toLowerCase() ===
-                request.requester.toLowerCase()
+            const isPending = pendingActionKeys.has(
+              accessActionKey(request.recordId, request.requester)
+            )
 
             return (
               <TableRow key={`${request.recordId}-${request.requester}`}>
@@ -244,31 +251,13 @@ export function AccessTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="space-x-2">
-                  <Button
-                    size="sm"
-                    aria-label={
-                      isPending && pendingAction.type === "approve"
-                        ? `Menyetujui akses rekam medis ${request.recordId}`
-                        : `Setujui akses rekam medis ${request.recordId}`
-                    }
-                    disabled={isPending}
-                    onClick={() =>
-                      onApprove(request.recordId, request.requester)
-                    }
-                  >
-                    Setujui
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    aria-label={`Cabut akses rekam medis ${request.recordId}`}
-                    disabled={isPending}
-                    onClick={() =>
-                      onRevoke(request.recordId, request.requester)
-                    }
-                  >
-                    Cabut
-                  </Button>
+                  <AccessActionButtons
+                    recordId={request.recordId}
+                    requester={request.requester}
+                    isPending={isPending}
+                    onApprove={onApprove}
+                    onRevoke={onRevoke}
+                  />
                 </TableCell>
               </TableRow>
             )

@@ -1,17 +1,27 @@
 // @vitest-environment jsdom
 
-import { renderHook } from "@testing-library/react"
-import { beforeAll, describe, expect, it } from "vitest"
+import { act, renderHook } from "@testing-library/react"
+import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { AppProviders } from "@/app/providers"
 import {
   executeTransactionLifecycle,
   initialTransactionState,
+  useTransactionRunner,
   useTransactionState,
 } from "@/app/TransactionProvider"
 import type { TransactionState } from "@/app/TransactionProvider"
 
 const hash = `0x${"1".repeat(64)}` as const
+const newerHash = `0x${"2".repeat(64)}` as const
+
+const contract = vi.hoisted(() => ({
+  waitForTransaction: vi.fn(),
+}))
+
+vi.mock("@/contracts/bpjsMedicalRecords", () => ({
+  waitForTransaction: contract.waitForTransaction,
+}))
 
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
@@ -139,5 +149,57 @@ describe("AppProviders", () => {
     })
 
     expect(result.current).toEqual(initialTransactionState)
+  })
+
+  it("keeps the newest transaction when an older receipt resolves last", async () => {
+    let resolveOlderReceipt: (() => void) | undefined
+    contract.waitForTransaction.mockImplementation(
+      (transactionHash: `0x${string}`) =>
+        transactionHash === hash
+          ? new Promise<void>((resolve) => {
+              resolveOlderReceipt = resolve
+            })
+          : Promise.resolve()
+    )
+    const { result } = renderHook(
+      () => ({
+        runTransaction: useTransactionRunner(),
+        transaction: useTransactionState(),
+      }),
+      { wrapper: AppProviders }
+    )
+
+    let olderTransaction: Promise<`0x${string}`>
+    await act(async () => {
+      olderTransaction = result.current.runTransaction(
+        "Transaksi lama",
+        async () => hash
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      await result.current.runTransaction(
+        "Transaksi terbaru",
+        async () => newerHash
+      )
+    })
+
+    expect(result.current.transaction).toMatchObject({
+      status: "confirmed",
+      action: "Transaksi terbaru",
+      hash: newerHash,
+    })
+
+    await act(async () => {
+      resolveOlderReceipt?.()
+      await olderTransaction
+    })
+
+    expect(result.current.transaction).toMatchObject({
+      status: "confirmed",
+      action: "Transaksi terbaru",
+      hash: newerHash,
+    })
   })
 })

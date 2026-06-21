@@ -13,8 +13,22 @@ import { privateKeyToAccount } from "viem/accounts"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const frontendDir = path.resolve(__dirname, "..")
-const workspaceDir = path.resolve(frontendDir, "..")
-const contractDir = path.join(workspaceDir, "contract")
+
+function resolveContractDir() {
+  if (process.env.CONTRACT_DIR) return path.resolve(process.env.CONTRACT_DIR)
+
+  const result = spawnSync(
+    "git",
+    ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    { cwd: frontendDir, encoding: "utf8" }
+  )
+  if (result.status !== 0) {
+    throw new Error("Unable to resolve repository root for contract directory")
+  }
+  return path.join(path.dirname(path.dirname(result.stdout.trim())), "contract")
+}
+
+const contractDir = resolveContractDir()
 const stateDir = path.join(frontendDir, "e2e", ".state")
 const artifactPath = path.join(
   contractDir,

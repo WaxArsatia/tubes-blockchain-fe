@@ -18,6 +18,10 @@ import {
 import { ErrorState, LoadingRows } from "@/components/shared/StateViews"
 import { UserCombobox } from "@/components/shared/UserCombobox"
 import { useRegisterBpjs, useSetRole, useUsers } from "@/hooks/useBpjsContract"
+import {
+  roleActionKey,
+  usePendingActionKeys,
+} from "@/hooks/usePendingActionKeys"
 import { roleLabel, shortAddress } from "@/lib/users"
 import type { Role } from "@/lib/users"
 
@@ -30,6 +34,7 @@ export function AdminDashboard() {
   const [search, setSearch] = useState("")
   const [targetAccount, setTargetAccount] = useState("")
   const [bpjsId, setBpjsId] = useState("")
+  const roleActions = usePendingActionKeys()
 
   const filteredUsers = useMemo(() => {
     const keyword = search.toLowerCase()
@@ -145,36 +150,22 @@ export function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-2">
-                          {roles.map((role) => {
-                            const isPending =
-                              setRole.isPending &&
-                              setRole.variables.account.toLowerCase() ===
-                                user.account.toLowerCase() &&
-                              setRole.variables.role === role
-
-                            return (
-                              <label
-                                key={role}
-                                className="flex items-center gap-1 text-xs"
-                              >
-                                <Checkbox
-                                  aria-label={`${roleLabel(role)} untuk ${shortAddress(user.account)}${isPending ? " sedang diproses" : ""}`}
-                                  checked={user.roles.includes(role)}
-                                  disabled={isPending}
-                                  onCheckedChange={(checked) =>
-                                    setRole.mutate({
-                                      account: user.account,
-                                      role,
-                                      active: checked === true,
-                                    })
-                                  }
-                                />
-                                {roleLabel(role)}
-                              </label>
-                            )
-                          })}
-                        </div>
+                        <RoleCheckboxes
+                          account={user.account}
+                          activeRoles={user.roles}
+                          pendingKeys={roleActions.pendingKeys}
+                          onChange={(key, role, active) => {
+                            void roleActions
+                              .run(key, () =>
+                                setRole.mutateAsync({
+                                  account: user.account,
+                                  role,
+                                  active,
+                                })
+                              )
+                              .catch(() => undefined)
+                          }}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -184,6 +175,41 @@ export function AdminDashboard() {
           ) : null}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+export function RoleCheckboxes({
+  account,
+  activeRoles,
+  pendingKeys,
+  onChange,
+}: {
+  account: `0x${string}`
+  activeRoles: Role[]
+  pendingKeys: ReadonlySet<string>
+  onChange: (key: string, role: Role, active: boolean) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {roles.map((role) => {
+        const key = roleActionKey(account, role)
+        const isPending = pendingKeys.has(key)
+
+        return (
+          <label key={role} className="flex items-center gap-1 text-xs">
+            <Checkbox
+              aria-label={`${roleLabel(role)} untuk ${shortAddress(account)}${isPending ? " sedang diproses" : ""}`}
+              checked={activeRoles.includes(role)}
+              disabled={isPending}
+              onCheckedChange={(checked) =>
+                onChange(key, role, checked === true)
+              }
+            />
+            {roleLabel(role)}
+          </label>
+        )
+      })}
     </div>
   )
 }

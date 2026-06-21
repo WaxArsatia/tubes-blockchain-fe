@@ -93,6 +93,16 @@ async function connectWallet(page: Page) {
   }
 }
 
+async function transactionWriteCount() {
+  const providerUrl = process.env.E2E_PROVIDER_URL
+  if (!providerUrl) throw new Error("E2E_PROVIDER_URL is required")
+
+  const response = await fetch(`${providerUrl}/metrics`)
+  if (!response.ok) throw new Error("Wallet metrics are unavailable")
+  const metrics = (await response.json()) as { transactionWriteCount: number }
+  return metrics.transactionWriteCount
+}
+
 test("runs BPJS role workflows with real wallet transactions", async ({
   page,
 }) => {
@@ -131,19 +141,30 @@ test("runs BPJS role workflows with real wallet transactions", async ({
   const submitRecord = page.getByRole("button", {
     name: "Simpan rekam medis",
   })
+  const writesBeforeSubmit = await transactionWriteCount()
   await submitRecord.click()
-  await expect(
-    page.getByRole("button", { name: "Menyimpan rekam medis" })
-  ).toBeDisabled()
-  await expect(
-    page.getByText("Menyimpan rekam medis", { exact: true })
-  ).toBeVisible()
+  const pendingSubmit = page.getByRole("button", {
+    name: "Menyimpan rekam medis",
+  })
+  await expect(pendingSubmit).toBeDisabled()
+  await pendingSubmit.click({ force: true })
+
+  const submittedMessage = page.getByText(
+    "Transaksi dikirim. Menunggu konfirmasi jaringan."
+  )
+  await expect(submittedMessage).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText("Transaksi berhasil dikonfirmasi.")).toHaveCount(
+    0
+  )
   await expect(
     page.getByRole("link", { name: "Lihat di Blockscout" })
-  ).toBeVisible({ timeout: 30_000 })
+  ).toBeVisible()
+  expect(await transactionWriteCount()).toBe(writesBeforeSubmit + 1)
+
   await expect(page.getByText("Transaksi berhasil dikonfirmasi.")).toBeVisible({
     timeout: 45_000,
   })
+  expect(await transactionWriteCount()).toBe(writesBeforeSubmit + 1)
   await expect(page.getByText("Rekam medis tersimpan")).toBeVisible({
     timeout: 45_000,
   })

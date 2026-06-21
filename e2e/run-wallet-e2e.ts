@@ -9,8 +9,22 @@ import { privateKeyToAccount } from "viem/accounts"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const frontendDir = path.resolve(__dirname, "..")
-const workspaceDir = path.resolve(frontendDir, "..")
-const contractDir = path.join(workspaceDir, "contract")
+
+function resolveContractDir() {
+  if (process.env.CONTRACT_DIR) return path.resolve(process.env.CONTRACT_DIR)
+
+  const result = spawnSync(
+    "git",
+    ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    { cwd: frontendDir, encoding: "utf8" }
+  )
+  if (result.status !== 0) {
+    throw new Error("Unable to resolve repository root for contract directory")
+  }
+  return path.join(path.dirname(path.dirname(result.stdout.trim())), "contract")
+}
+
+const contractDir = resolveContractDir()
 const stateDir = path.join(frontendDir, "e2e", ".state")
 const anvilPrivateKey =
   "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -132,11 +146,18 @@ async function startInjectedWalletServer({
     chain,
     transport: viemHttp(rpcUrl),
   })
+  let transactionWriteCount = 0
 
   const server = http.createServer(async (request, response) => {
     response.setHeader("access-control-allow-origin", "*")
     response.setHeader("access-control-allow-methods", "POST, OPTIONS")
     response.setHeader("access-control-allow-headers", "content-type")
+
+    if (request.method === "GET" && request.url === "/metrics") {
+      response.writeHead(200, { "content-type": "application/json" })
+      response.end(JSON.stringify({ transactionWriteCount }))
+      return
+    }
 
     if (request.method === "OPTIONS") {
       response.writeHead(204)
@@ -202,6 +223,7 @@ async function startInjectedWalletServer({
         result = await publicClient.sendRawTransaction({
           serializedTransaction,
         })
+        transactionWriteCount += 1
       } else {
         throw new Error(`Unsupported EIP-1193 method: ${body.method}`)
       }
@@ -266,6 +288,8 @@ function startAnvil(chainId: string) {
       chainId,
       "--balance",
       "10000",
+      "--block-time",
+      "2",
     ],
     {
       cwd: frontendDir,
@@ -285,7 +309,6 @@ async function main() {
   const headed = hasFlag("--headed")
   const envValues = await loadContractEnv()
   let privateKey = String(envValues.PRIVATE_KEY ?? "").replace(/^0x/, "")
-  if (!privateKey) throw new Error("PRIVATE_KEY is required in contract env")
 
   let anvil: ChildProcess | undefined
   let rpcUrl = envValues.RPC_URL ?? "https://blockchain-rpc.denis.my.id"
@@ -294,6 +317,8 @@ async function main() {
     const local = startAnvil(String(envValues.CHAIN_ID ?? 1337))
     anvil = local.anvil
     rpcUrl = local.rpcUrl
+  } else if (!privateKey) {
+    throw new Error("PRIVATE_KEY is required in contract env")
   }
 
   const stopAnvil = () => {

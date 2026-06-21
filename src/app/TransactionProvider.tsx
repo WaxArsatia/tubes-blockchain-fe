@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react"
 import type { ReactNode } from "react"
@@ -77,16 +78,22 @@ const TransactionRunnerContext = createContext<RunTransaction | null>(null)
 
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const [transaction, setTransaction] = useState(initialTransactionState)
-  const runTransaction = useCallback<RunTransaction>(
-    (action, request) =>
-      executeTransactionLifecycle({
-        action,
-        request,
-        waitForReceipt: (hash) => waitForTransaction(hash),
-        setState: setTransaction,
-      }),
-    []
-  )
+  const latestOperationId = useRef(0)
+  const runTransaction = useCallback<RunTransaction>((action, request) => {
+    const operationId = latestOperationId.current + 1
+    latestOperationId.current = operationId
+
+    return executeTransactionLifecycle({
+      action,
+      request,
+      waitForReceipt: (hash) => waitForTransaction(hash),
+      setState: (state) => {
+        if (latestOperationId.current === operationId) {
+          setTransaction(state)
+        }
+      },
+    })
+  }, [])
   const stateValue = useMemo(() => transaction, [transaction])
 
   return (

@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EmptyState, LoadingRows } from "@/components/shared/StateViews"
+import { AccessActionButtons } from "@/features/shared/AccessActionButtons"
 import {
   useAccessRequests,
   useApproveAccess,
@@ -21,6 +22,10 @@ import {
   useRevokeAccess,
   useUsers,
 } from "@/hooks/useBpjsContract"
+import {
+  accessActionKey,
+  usePendingActionKeys,
+} from "@/hooks/usePendingActionKeys"
 import { safeDecode, shortAddress } from "@/lib/users"
 
 export function PasienDashboard({ account }: { account: Address }) {
@@ -31,11 +36,7 @@ export function PasienDashboard({ account }: { account: Address }) {
   const revokeAccess = useRevokeAccess()
   const [selectedRecord, setSelectedRecord] = useState<bigint | null>(null)
   const recordDetail = useMedicalRecord(selectedRecord, account)
-  const pendingAccessAction = approveAccess.isPending
-    ? { type: "approve" as const, ...approveAccess.variables }
-    : revokeAccess.isPending
-      ? { type: "revoke" as const, ...revokeAccess.variables }
-      : undefined
+  const accessActions = usePendingActionKeys()
 
   const requestsForPatient = useMemo(
     () =>
@@ -166,10 +167,11 @@ export function PasienDashboard({ account }: { account: Address }) {
                 </TableHeader>
                 <TableBody>
                   {requestsForPatient.map((request) => {
-                    const isPending =
-                      pendingAccessAction?.recordId === request.recordId &&
-                      pendingAccessAction.requester.toLowerCase() ===
-                        request.requester.toLowerCase()
+                    const key = accessActionKey(
+                      request.recordId,
+                      request.requester
+                    )
+                    const isPending = accessActions.pendingKeys.has(key)
 
                     return (
                       <TableRow
@@ -192,38 +194,31 @@ export function PasienDashboard({ account }: { account: Address }) {
                           </Badge>
                         </TableCell>
                         <TableCell className="space-x-2">
-                          <Button
-                            size="sm"
-                            aria-label={
-                              isPending &&
-                              pendingAccessAction.type === "approve"
-                                ? `Menyetujui akses rekam medis ${request.recordId}`
-                                : `Setujui akses rekam medis ${request.recordId}`
-                            }
-                            disabled={isPending}
-                            onClick={() =>
-                              approveAccess.mutate({
-                                recordId: request.recordId,
-                                requester: request.requester,
-                              })
-                            }
-                          >
-                            Setujui
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            aria-label={`Cabut akses rekam medis ${request.recordId}`}
-                            disabled={isPending}
-                            onClick={() =>
-                              revokeAccess.mutate({
-                                recordId: request.recordId,
-                                requester: request.requester,
-                              })
-                            }
-                          >
-                            Cabut
-                          </Button>
+                          <AccessActionButtons
+                            recordId={request.recordId}
+                            requester={request.requester}
+                            isPending={isPending}
+                            onApprove={() => {
+                              void accessActions
+                                .run(key, () =>
+                                  approveAccess.mutateAsync({
+                                    recordId: request.recordId,
+                                    requester: request.requester,
+                                  })
+                                )
+                                .catch(() => undefined)
+                            }}
+                            onRevoke={() => {
+                              void accessActions
+                                .run(key, () =>
+                                  revokeAccess.mutateAsync({
+                                    recordId: request.recordId,
+                                    requester: request.requester,
+                                  })
+                                )
+                                .catch(() => undefined)
+                            }}
+                          />
                         </TableCell>
                       </TableRow>
                     )

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { AccessTable } from "@/features/faskes/FaskesDashboard"
+import { accessActionKey, AccessTable } from "@/features/faskes/FaskesDashboard"
+import { usePendingActionKeys } from "@/hooks/usePendingActionKeys"
 
 const patient = `0x${"1".repeat(40)}` as const
 const faskes = `0x${"2".repeat(40)}` as const
@@ -41,6 +42,8 @@ const rows = [
   },
 ] as const
 
+afterEach(cleanup)
+
 describe("AccessTable", () => {
   it("blocks duplicate and conflicting clicks only for the pending request", () => {
     const onApprove = vi.fn()
@@ -60,11 +63,7 @@ describe("AccessTable", () => {
         rows={rows}
         onApprove={onApprove}
         onRevoke={onRevoke}
-        pendingAction={{
-          type: "approve",
-          recordId: 1n,
-          requester: requesterA,
-        }}
+        pendingActionKeys={new Set([accessActionKey(1n, requesterA)])}
       />
     )
 
@@ -86,5 +85,56 @@ describe("AccessTable", () => {
     fireEvent.click(revokeA)
     expect(onApprove).toHaveBeenCalledOnce()
     expect(onRevoke).not.toHaveBeenCalled()
+  })
+
+  it("keeps both requests disabled while overlapping actions are unresolved", async () => {
+    const resolvers = new Map<string, () => void>()
+
+    function AccessHarness() {
+      const { pendingKeys, run } = usePendingActionKeys()
+      const start = (recordId: bigint, requester: `0x${string}`) => {
+        const key = accessActionKey(recordId, requester)
+        void run(
+          key,
+          () =>
+            new Promise<void>((resolve) => {
+              resolvers.set(key, resolve)
+            })
+        )
+      }
+
+      return (
+        <AccessTable
+          rows={rows}
+          onApprove={start}
+          onRevoke={start}
+          pendingActionKeys={pendingKeys}
+        />
+      )
+    }
+
+    render(<AccessHarness />)
+    const approveA = screen.getByRole("button", {
+      name: "Setujui akses rekam medis 1",
+    })
+    const approveB = screen.getByRole("button", {
+      name: "Setujui akses rekam medis 2",
+    })
+
+    fireEvent.click(approveA)
+    fireEvent.click(approveB)
+
+    expect(approveA.hasAttribute("disabled")).toBe(true)
+    expect(approveB.hasAttribute("disabled")).toBe(true)
+
+    await act(async () => resolvers.get(accessActionKey(2n, requesterB))?.())
+
+    expect(approveA.hasAttribute("disabled")).toBe(true)
+    expect(approveB.hasAttribute("disabled")).toBe(false)
+    expect(
+      screen
+        .getByRole("button", { name: "Cabut akses rekam medis 1" })
+        .hasAttribute("disabled")
+    ).toBe(true)
   })
 })
