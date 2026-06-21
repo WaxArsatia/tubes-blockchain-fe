@@ -198,23 +198,35 @@ export function PasienDashboard({ account }: { account: Address }) {
                             recordId={request.recordId}
                             requester={request.requester}
                             isPending={isPending}
+                            pendingAction={
+                              accessActions.pendingMetadata.get(key) as
+                                | "approve"
+                                | "revoke"
+                                | undefined
+                            }
                             onApprove={() => {
                               void accessActions
-                                .run(key, () =>
-                                  approveAccess.mutateAsync({
-                                    recordId: request.recordId,
-                                    requester: request.requester,
-                                  })
+                                .run(
+                                  key,
+                                  () =>
+                                    approveAccess.mutateAsync({
+                                      recordId: request.recordId,
+                                      requester: request.requester,
+                                    }),
+                                  "approve"
                                 )
                                 .catch(() => undefined)
                             }}
                             onRevoke={() => {
                               void accessActions
-                                .run(key, () =>
-                                  revokeAccess.mutateAsync({
-                                    recordId: request.recordId,
-                                    requester: request.requester,
-                                  })
+                                .run(
+                                  key,
+                                  () =>
+                                    revokeAccess.mutateAsync({
+                                      recordId: request.recordId,
+                                      requester: request.requester,
+                                    }),
+                                  "revoke"
                                 )
                                 .catch(() => undefined)
                             }}

@@ -13,22 +13,30 @@ export function roleActionKey(
 
 export function usePendingActionKeys() {
   const pendingKeysRef = useRef(new Set<string>())
+  const pendingMetadataRef = useRef(new Map<string, string>())
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(
     () => new Set()
   )
+  const [pendingMetadata, setPendingMetadata] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map())
 
   const run = useCallback(
-    async (key: string, action: () => Promise<unknown>) => {
+    async (key: string, action: () => Promise<unknown>, metadata?: string) => {
       if (pendingKeysRef.current.has(key)) return
 
       pendingKeysRef.current.add(key)
+      if (metadata) pendingMetadataRef.current.set(key, metadata)
       setPendingKeys(new Set(pendingKeysRef.current))
+      setPendingMetadata(new Map(pendingMetadataRef.current))
 
       try {
         await action()
       } finally {
         pendingKeysRef.current.delete(key)
+        pendingMetadataRef.current.delete(key)
         setPendingKeys(new Set(pendingKeysRef.current))
+        setPendingMetadata(new Map(pendingMetadataRef.current))
       }
     },
     []
@@ -39,5 +47,5 @@ export function usePendingActionKeys() {
     [pendingKeys]
   )
 
-  return { pendingKeys, isPending, run }
+  return { pendingKeys, pendingMetadata, isPending, run }
 }

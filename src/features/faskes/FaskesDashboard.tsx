@@ -45,6 +45,7 @@ const fieldNames = [
   "Catatan",
 ]
 const emptyPendingKeys = new Set<string>()
+const emptyPendingMetadata = new Map<string, string>()
 
 export function FaskesDashboard({ account }: { account: Address }) {
   const usersQuery = useUsers()
@@ -183,20 +184,25 @@ export function FaskesDashboard({ account }: { account: Address }) {
               onApprove={(recordId, requester) => {
                 const key = accessActionKey(recordId, requester)
                 void accessActions
-                  .run(key, () =>
-                    approveAccess.mutateAsync({ recordId, requester })
+                  .run(
+                    key,
+                    () => approveAccess.mutateAsync({ recordId, requester }),
+                    "approve"
                   )
                   .catch(() => undefined)
               }}
               onRevoke={(recordId, requester) => {
                 const key = accessActionKey(recordId, requester)
                 void accessActions
-                  .run(key, () =>
-                    revokeAccess.mutateAsync({ recordId, requester })
+                  .run(
+                    key,
+                    () => revokeAccess.mutateAsync({ recordId, requester }),
+                    "revoke"
                   )
                   .catch(() => undefined)
               }}
               pendingActionKeys={accessActions.pendingKeys}
+              pendingActionMetadata={accessActions.pendingMetadata}
             />
           )}
         </CardContent>
@@ -210,11 +216,13 @@ export function AccessTable({
   onApprove,
   onRevoke,
   pendingActionKeys = emptyPendingKeys,
+  pendingActionMetadata = emptyPendingMetadata,
 }: {
   rows: AccessRequestRows
   onApprove: (recordId: bigint, requester: Address) => void
   onRevoke: (recordId: bigint, requester: Address) => void
   pendingActionKeys?: ReadonlySet<string>
+  pendingActionMetadata?: ReadonlyMap<string, string>
 }) {
   return (
     <div className="overflow-x-auto">
@@ -255,6 +263,13 @@ export function AccessTable({
                     recordId={request.recordId}
                     requester={request.requester}
                     isPending={isPending}
+                    pendingAction={
+                      isPending
+                        ? (pendingActionMetadata.get(
+                            accessActionKey(request.recordId, request.requester)
+                          ) as "approve" | "revoke" | undefined)
+                        : undefined
+                    }
                     onApprove={onApprove}
                     onRevoke={onRevoke}
                   />

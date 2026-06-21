@@ -6,12 +6,14 @@ export function AccessActionButtons({
   recordId,
   requester,
   isPending,
+  pendingAction,
   onApprove,
   onRevoke,
 }: {
   recordId: bigint
   requester: Address
   isPending: boolean
+  pendingAction?: "approve" | "revoke"
   onApprove: (recordId: bigint, requester: Address) => void
   onRevoke: (recordId: bigint, requester: Address) => void
 }) {
@@ -20,7 +22,7 @@ export function AccessActionButtons({
       <Button
         size="sm"
         aria-label={
-          isPending
+          pendingAction === "approve"
             ? `Menyetujui akses rekam medis ${recordId}`
             : `Setujui akses rekam medis ${recordId}`
         }
@@ -32,7 +34,11 @@ export function AccessActionButtons({
       <Button
         size="sm"
         variant="outline"
-        aria-label={`Cabut akses rekam medis ${recordId}`}
+        aria-label={
+          pendingAction === "revoke"
+            ? `Mencabut akses rekam medis ${recordId}`
+            : `Cabut akses rekam medis ${recordId}`
+        }
         disabled={isPending}
         onClick={() => onRevoke(recordId, requester)}
       >

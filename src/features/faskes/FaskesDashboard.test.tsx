@@ -64,6 +64,9 @@ describe("AccessTable", () => {
         onApprove={onApprove}
         onRevoke={onRevoke}
         pendingActionKeys={new Set([accessActionKey(1n, requesterA)])}
+        pendingActionMetadata={
+          new Map([[accessActionKey(1n, requesterA), "approve"]])
+        }
       />
     )
 
