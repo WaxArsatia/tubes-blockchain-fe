@@ -1,10 +1,13 @@
+import { Suspense, lazy } from "react"
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router"
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
-import { TanStackDevtools } from "@tanstack/react-devtools"
 
 import { AppProviders } from "@/app/providers"
 
 import appCss from "../styles.css?url"
+
+const TanStackDevtools = import.meta.env.DEV
+  ? lazy(() => import("@/components/TanStackDevtools"))
+  : null
 
 export const Route = createRootRoute({
   head: () => ({
@@ -44,17 +47,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <AppProviders>{children}</AppProviders>
-        <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        {TanStackDevtools ? (
+          <Suspense fallback={null}>
+            <TanStackDevtools />
+          </Suspense>
+        ) : null}
         <Scripts />
       </body>
     </html>
