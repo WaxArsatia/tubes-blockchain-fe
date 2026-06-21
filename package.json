@@ -11,6 +11,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:real-rpc": "bun e2e/seed-bpjs-state.ts && playwright test",
+    "test:real-rpc:ui": "bun e2e/seed-bpjs-state.ts && playwright test --ui",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx}\"",
     "check": "prettier --check \"**/*.{ts,tsx,js,jsx}\"",
