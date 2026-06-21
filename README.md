@@ -11,10 +11,6 @@ contract address is:
 0x9B8397f1B0FEcD3a1a40CdD5E8221Fa461898517
 ```
 
-The app uses an injected MetaMask-compatible wallet only. If the wallet is on
-the wrong network, the UI calls `wallet_switchEthereumChain` and falls back to
-`wallet_addEthereumChain` for chain `1337`.
-
 ## Environment
 
 - `VITE_RPC_URL`: read RPC endpoint.
@@ -23,9 +19,6 @@ the wrong network, the UI calls `wallet_switchEthereumChain` and falls back to
 - `VITE_IPFS_API_URL`: encrypted file upload endpoint.
 - `VITE_IPFS_GATEWAY_URL`: encrypted file download gateway.
 - `VITE_DOCUMENT_ENCRYPTION_KEY`: shared demo key for document encryption.
-
-Do not upload documents without `VITE_DOCUMENT_ENCRYPTION_KEY`; the UI blocks
-plaintext upload paths through the encryption helper.
 
 ## Scripts
 
