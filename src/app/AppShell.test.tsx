@@ -29,8 +29,11 @@ describe("AppShell", () => {
 
     expect(screen.getByText("Peran aktif: Faskes")).toBeTruthy()
     expect(screen.getByText(`Jaringan: ${env.VITE_CHAIN_NAME}`)).toBeTruthy()
+    const encryptionStatus = env.VITE_DOCUMENT_ENCRYPTION_KEY.trim()
+      ? "Terkonfigurasi"
+      : "Belum dikonfigurasi"
     expect(
-      screen.getByText("Enkripsi dokumen: Belum dikonfigurasi")
+      screen.getByText(`Enkripsi dokumen: ${encryptionStatus}`)
     ).toBeTruthy()
     expect(screen.getByText("Transaksi terbaru")).toBeTruthy()
     expect(screen.getByText("Siap")).toBeTruthy()
