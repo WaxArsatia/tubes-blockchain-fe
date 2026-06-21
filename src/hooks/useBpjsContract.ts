@@ -2,11 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import type { Address } from "viem"
 
-import {
-  bpjsReads,
-  bpjsWrites,
-  waitForTransaction,
-} from "@/contracts/bpjsMedicalRecords"
+import { useTransactionRunner } from "@/app/TransactionProvider"
+import { bpjsReads, bpjsWrites } from "@/contracts/bpjsMedicalRecords"
 import { encodeBase64Text } from "@/lib/encoding"
 import { toUserFacingError } from "@/lib/errors"
 import { normalizeUser } from "@/lib/users"
@@ -19,12 +16,6 @@ export const bpjsKeys = {
   records: (patient: string) => ["bpjs", "records", patient] as const,
   record: (recordId: bigint, account: string) =>
     ["bpjs", "record", recordId.toString(), account] as const,
-}
-
-async function writeWithReceipt(action: () => Promise<`0x${string}`>) {
-  const hash = await action()
-  await waitForTransaction(hash)
-  return hash
 }
 
 export function useUsers() {
@@ -63,9 +54,10 @@ export function useMedicalRecord(
 
 export function useRegisterUser() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: (identity: string) =>
-      writeWithReceipt(() =>
+      runTransaction("Menyimpan identitas", () =>
         bpjsWrites.registerUser(encodeBase64Text(identity))
       ),
     onSuccess: () => {
@@ -78,13 +70,14 @@ export function useRegisterUser() {
 
 export function useSetRole() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: (input: {
       role: "admin" | "faskes" | "pasien" | "auditor"
       account: Address
       active: boolean
     }) =>
-      writeWithReceipt(() =>
+      runTransaction("Memperbarui role", () =>
         bpjsWrites.setRole(input.role, input.account, input.active)
       ),
     onSuccess: () => {
@@ -97,9 +90,10 @@ export function useSetRole() {
 
 export function useRegisterBpjs() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: (input: { account: Address; bpjsId: string }) =>
-      writeWithReceipt(() =>
+      runTransaction("Menyimpan nomor BPJS", () =>
         bpjsWrites.registerBPJS(input.account, input.bpjsId)
       ),
     onSuccess: () => {
@@ -112,6 +106,7 @@ export function useRegisterBpjs() {
 
 export function useSubmitMedicalRecord() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: async (input: {
       patient: Address
@@ -121,7 +116,7 @@ export function useSubmitMedicalRecord() {
     }) => {
       const [active] = await bpjsReads.verifyInsurance(input.patient)
       if (!active) throw new Error("InactivePatient")
-      return writeWithReceipt(() =>
+      return runTransaction("Menyimpan rekam medis", () =>
         bpjsWrites.submitMedicalRecord(
           input.patient,
           input.faskes,
@@ -143,13 +138,14 @@ export function useSubmitMedicalRecord() {
 
 export function useAddDocuments() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: (input: {
       recordId: bigint
       cids: string[]
       labels: string[]
     }) =>
-      writeWithReceipt(() =>
+      runTransaction("Menambahkan dokumen", () =>
         bpjsWrites.addDocuments(
           input.recordId,
           input.cids,
@@ -166,9 +162,10 @@ export function useAddDocuments() {
 
 export function useApproveAccess() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: (input: { recordId: bigint; requester: Address }) =>
-      writeWithReceipt(() =>
+      runTransaction("Menyetujui akses", () =>
         bpjsWrites.approveRecordAccess(input.recordId, input.requester)
       ),
     onSuccess: () => {
@@ -181,9 +178,10 @@ export function useApproveAccess() {
 
 export function useRevokeAccess() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: (input: { recordId: bigint; requester: Address }) =>
-      writeWithReceipt(() =>
+      runTransaction("Mencabut akses", () =>
         bpjsWrites.revokeRecordAccess(input.recordId, input.requester)
       ),
     onSuccess: () => {
@@ -196,9 +194,12 @@ export function useRevokeAccess() {
 
 export function useRequestRecordAccess() {
   const queryClient = useQueryClient()
+  const runTransaction = useTransactionRunner()
   return useMutation({
     mutationFn: (recordId: bigint) =>
-      writeWithReceipt(() => bpjsWrites.requestRecordAccess(recordId)),
+      runTransaction("Meminta akses rekam medis", () =>
+        bpjsWrites.requestRecordAccess(recordId)
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: bpjsKeys.accessRequests })
       toast.success("Permintaan akses dikirim")

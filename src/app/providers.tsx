@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { TransactionProvider } from "@/app/TransactionProvider"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,10 +21,12 @@ const queryClient = new QueryClient({
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delay={250}>
-        {children}
-        <Toaster richColors closeButton />
-      </TooltipProvider>
+      <TransactionProvider>
+        <TooltipProvider delay={250}>
+          {children}
+          <Toaster richColors closeButton />
+        </TooltipProvider>
+      </TransactionProvider>
     </QueryClientProvider>
   )
 }
