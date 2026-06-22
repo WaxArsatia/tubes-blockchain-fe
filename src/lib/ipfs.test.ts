@@ -166,6 +166,21 @@ describe("IPFS encrypted document boundary", () => {
     expect(await (uploaded as File).text()).not.toContain("plaintext")
   })
 
+  it("posts uploads to the Kubo add route when configured with the IPFS API origin", async () => {
+    env.VITE_IPFS_API_URL = "https://ipfs-api.denis.my.id"
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ cid: validCid }), {
+        status: 200,
+      })
+    )
+
+    await uploadEncryptedFile(fileFromBytes(new Uint8Array([1])))
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(
+      "https://ipfs-api.denis.my.id/api/v0/add"
+    )
+  })
+
   it("rejects malformed CID upload responses", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ cid: "not a cid" }), { status: 200 })

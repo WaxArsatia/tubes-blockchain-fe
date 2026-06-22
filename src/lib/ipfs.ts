@@ -64,6 +64,14 @@ function validateDownloadCid(cid: string) {
   if (!cidPattern.test(cid)) throw new Error("CID dokumen tidak valid")
 }
 
+function resolveUploadUrl(apiUrl: string) {
+  const url = new URL(apiUrl)
+  if (url.pathname === "/" || url.pathname === "") {
+    url.pathname = "/api/v0/add"
+  }
+  return url.toString()
+}
+
 export function getDocumentUploadErrorMessage(code: DocumentUploadErrorCode) {
   const messages = {
     "invalid-key": "Kunci enkripsi dokumen belum siap",
@@ -161,7 +169,7 @@ export async function uploadEncryptedFile(file: File) {
   const body = new FormData()
   body.append("file", blob, "document-envelope.json")
 
-  const response = await fetch(env.VITE_IPFS_API_URL, {
+  const response = await fetch(resolveUploadUrl(env.VITE_IPFS_API_URL), {
     method: "POST",
     body,
   })
