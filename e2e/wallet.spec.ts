@@ -1,5 +1,15 @@
 import { expect, test } from "@playwright/test"
 import type { Page } from "@playwright/test"
+import { readFile } from "node:fs/promises"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const fixtureDocumentPath = path.join(
+  __dirname,
+  "fixtures",
+  "synthetic-document.pdf"
+)
 
 test.beforeEach(async ({ context }) => {
   const providerUrl = process.env.E2E_PROVIDER_URL
@@ -103,6 +113,15 @@ async function transactionWriteCount() {
   return metrics.transactionWriteCount
 }
 
+async function chooseUser(page: Page, label: string, query: string) {
+  await page.getByRole("combobox", { name: label, exact: true }).click()
+  const dialog = page.getByRole("dialog", { name: label })
+  await dialog.getByPlaceholder("Cari wallet atau identitas").fill(query)
+  const option = dialog.getByRole("option").first()
+  await expect(option).toBeVisible()
+  await option.click()
+}
+
 test("runs BPJS role workflows with real wallet transactions", async ({
   page,
 }) => {
@@ -126,7 +145,7 @@ test("runs BPJS role workflows with real wallet transactions", async ({
   await expect(page.getByRole("button", { name: "Admin" })).toBeVisible()
 
   await page.getByRole("button", { name: "Faskes" }).click()
-  await page.getByLabel("Pasien").fill(process.env.E2E_DEPLOYER_ADDRESS ?? "")
+  await chooseUser(page, "Pasien", process.env.E2E_DEPLOYER_ADDRESS ?? "")
   await page.getByLabel("Label rekam medis").fill("Kunjungan E2E browser")
   await page.getByLabel("Tanggal kunjungan").fill("2026-06-22")
   await page.getByLabel("Dokter atau petugas").fill("dr. E2E")
@@ -169,10 +188,47 @@ test("runs BPJS role workflows with real wallet transactions", async ({
     timeout: 45_000,
   })
 
+  await chooseUser(
+    page,
+    "Pasien untuk dokumen",
+    process.env.E2E_DEPLOYER_ADDRESS ?? ""
+  )
+  await page.getByRole("combobox", { name: "Rekam medis tujuan" }).click()
+  await page
+    .getByRole("option", { name: /Kunjungan E2E browser/ })
+    .click({ timeout: 30_000 })
+  await page.getByLabel("File dokumen").setInputFiles(fixtureDocumentPath)
+  await page.getByLabel("Label dokumen 1").fill("Fixture dokumen E2E.pdf")
+
+  const writesBeforeDocuments = await transactionWriteCount()
+  await page.getByRole("button", { name: "Unggah dokumen terenkripsi" }).click()
+  await expect(page.getByText("Dokumen terkonfirmasi")).toBeVisible({
+    timeout: 45_000,
+  })
+  expect(await transactionWriteCount()).toBe(writesBeforeDocuments + 1)
+  await expect(page.getByText("Dokumen ditambahkan")).toBeVisible({
+    timeout: 45_000,
+  })
+
   await page.getByRole("button", { name: "Pasien" }).click()
-  await expect(
-    page.getByRole("button", { name: /#\d+ Kunjungan E2E browser/ })
-  ).toBeVisible({
+  const patientRecord = page.getByRole("button", {
+    name: /#\d+ Kunjungan E2E browser/,
+  })
+  await expect(patientRecord).toBeVisible({
     timeout: 30_000,
   })
+  await patientRecord.click()
+  await expect(page.getByText("Fixture dokumen E2E.pdf")).toBeVisible({
+    timeout: 30_000,
+  })
+  const downloadPromise = page.waitForEvent("download")
+  await page
+    .getByRole("button", { name: "Unduh Fixture dokumen E2E.pdf" })
+    .click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe("Fixture-dokumen-E2E.pdf")
+  const downloadedPath = await download.path()
+  expect(await readFile(downloadedPath)).toEqual(
+    await readFile(fixtureDocumentPath)
+  )
 })

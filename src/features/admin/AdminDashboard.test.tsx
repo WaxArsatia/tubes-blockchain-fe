@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { RoleCheckboxes } from "@/features/admin/AdminDashboard"
 import { usePendingActionKeys } from "@/hooks/usePendingActionKeys"
@@ -47,6 +54,11 @@ function RoleHarness() {
 
 const resolvers = new Map<string, () => void>()
 
+afterEach(() => {
+  cleanup()
+  resolvers.clear()
+})
+
 describe("RoleCheckboxes", () => {
   it("keeps earlier role updates disabled while a later update completes", async () => {
     render(<RoleHarness />)
@@ -89,5 +101,87 @@ describe("RoleCheckboxes", () => {
         .getByRole("checkbox", { name: /Faskes untuk 0x2222/ })
         .getAttribute("aria-disabled")
     ).not.toBe("true")
+  })
+
+  it("requires confirmation before disabling an active role", () => {
+    const onChange = vi.fn()
+    render(
+      <RoleCheckboxes
+        account={accountA}
+        activeRoles={["admin"]}
+        pendingKeys={new Set()}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Admin untuk 0x1111/ })
+    )
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole("dialog", { name: "Nonaktifkan role?" })
+    ).toBeTruthy()
+    expect(
+      screen.getByText(/Role Admin untuk 0x1111.*akan dinonaktifkan/)
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }))
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Admin untuk 0x1111/ })
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan role" }))
+
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith(
+      expect.stringContaining(accountA.toLowerCase()),
+      "admin",
+      false
+    )
+  })
+
+  it("keeps enabling roles direct", () => {
+    const onChange = vi.fn()
+    render(
+      <RoleCheckboxes
+        account={accountA}
+        activeRoles={[]}
+        pendingKeys={new Set()}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Faskes untuk 0x1111/ })
+    )
+
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(onChange).toHaveBeenCalledWith(
+      expect.stringContaining(accountA.toLowerCase()),
+      "faskes",
+      true
+    )
+  })
+
+  it("lets the visible role label toggle the checkbox", () => {
+    const onChange = vi.fn()
+    render(
+      <RoleCheckboxes
+        account={accountA}
+        activeRoles={[]}
+        pendingKeys={new Set()}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByText("Auditor"))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.stringContaining(accountA.toLowerCase()),
+      "auditor",
+      true
+    )
   })
 })

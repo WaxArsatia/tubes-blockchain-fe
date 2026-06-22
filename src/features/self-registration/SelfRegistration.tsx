@@ -9,8 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useRegisterUser } from "@/hooks/useBpjsContract"
 
 export function SelfRegistration() {
@@ -34,15 +34,20 @@ export function SelfRegistration() {
             if (identity.trim()) registerUser.mutate(identity.trim())
           }}
         >
-          <div className="grid gap-2">
-            <Label htmlFor="identity">Nama atau identitas layanan</Label>
-            <Input
-              id="identity"
-              value={identity}
-              onChange={(event) => setIdentity(event.target.value)}
-              placeholder="Contoh: Klinik Sehat Sentosa"
-            />
-          </div>
+          <FieldGroup>
+            <Field data-invalid={identity.length > 0 && !identity.trim()}>
+              <FieldLabel htmlFor="identity">
+                Nama atau identitas layanan
+              </FieldLabel>
+              <Input
+                id="identity"
+                value={identity}
+                aria-invalid={identity.length > 0 && !identity.trim()}
+                onChange={(event) => setIdentity(event.target.value)}
+                placeholder="Contoh: Klinik Sehat Sentosa"
+              />
+            </Field>
+          </FieldGroup>
           <Button
             type="submit"
             disabled={!identity.trim() || registerUser.isPending}

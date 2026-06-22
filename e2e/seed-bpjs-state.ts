@@ -242,7 +242,7 @@ async function main() {
       `VITE_CONTRACT_ADDRESS=${contractAddress}`,
       `VITE_IPFS_API_URL=${loadedEnv.IPFS_API_URL ?? "https://ipfs-api.denis.my.id"}`,
       `VITE_IPFS_GATEWAY_URL=${loadedEnv.IPFS_GATEWAY_URL ?? "https://ipfs-gateway.denis.my.id/ipfs"}`,
-      "VITE_DOCUMENT_ENCRYPTION_KEY=e2e-document-key",
+      "VITE_DOCUMENT_ENCRYPTION_KEY=e2e-document-key-32-character-fixture",
       "",
     ].join("\n")
   )

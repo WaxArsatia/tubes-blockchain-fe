@@ -14,6 +14,8 @@ export const bpjsKeys = {
   recordAccessRequests: (recordId: bigint) =>
     ["bpjs", "record-access-requests", recordId.toString()] as const,
   records: (patient: string) => ["bpjs", "records", patient] as const,
+  faskesRecords: (patient: string, faskes: string) =>
+    ["bpjs", "faskes-records", patient, faskes] as const,
   record: (recordId: bigint, account: string) =>
     ["bpjs", "record", recordId.toString(), account] as const,
 }
@@ -37,6 +39,29 @@ export function usePatientRecords(patient?: Address | null) {
     queryKey: bpjsKeys.records(patient ?? ""),
     queryFn: () => bpjsReads.listMedicalRecords(patient as Address),
     enabled: Boolean(patient),
+  })
+}
+
+export function useFaskesPatientRecords(
+  patient?: Address | null,
+  faskes?: Address | null
+) {
+  return useQuery({
+    queryKey: bpjsKeys.faskesRecords(patient ?? "", faskes ?? ""),
+    queryFn: async () => {
+      const records = await bpjsReads.listMedicalRecords(patient as Address)
+      const details = await Promise.allSettled(
+        records.map((record) =>
+          bpjsReads.getMedicalRecord(record.id, faskes as Address)
+        )
+      )
+      return records.filter(
+        (_record, index) =>
+          details[index]?.status === "fulfilled" &&
+          details[index].value.faskes.toLowerCase() === faskes?.toLowerCase()
+      )
+    },
+    enabled: Boolean(patient && faskes),
   })
 }
 
@@ -142,6 +167,7 @@ export function useAddDocuments() {
   return useMutation({
     mutationFn: (input: {
       recordId: bigint
+      account?: Address
       cids: string[]
       labels: string[]
     }) =>
@@ -152,7 +178,12 @@ export function useAddDocuments() {
           input.labels.map(encodeBase64Text)
         )
       ),
-    onSuccess: () => {
+    onSuccess: (_hash, input) => {
+      if (input.account) {
+        void queryClient.invalidateQueries({
+          queryKey: bpjsKeys.record(input.recordId, input.account),
+        })
+      }
       void queryClient.invalidateQueries({ queryKey: ["bpjs"] })
       toast.success("Dokumen ditambahkan")
     },

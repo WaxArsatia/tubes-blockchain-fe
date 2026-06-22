@@ -27,3 +27,56 @@ const envSchema = z.object({
 
 export const env = envSchema.parse(import.meta.env)
 export const contractAddress = getAddress(env.VITE_CONTRACT_ADDRESS)
+
+export const DOCUMENT_ENCRYPTION_KEY_PLACEHOLDER = [
+  "change",
+  "this",
+  "demo",
+  "key",
+].join("-")
+export const DOCUMENT_ENCRYPTION_KEY_MIN_LENGTH = 32
+
+export type DocumentEncryptionKeyStatus =
+  | { configured: true; key: string }
+  | {
+      configured: false
+      error: string
+      reason: "missing" | "placeholder" | "short"
+    }
+
+export function validateDocumentEncryptionKey(
+  value: string
+): DocumentEncryptionKeyStatus {
+  const key = value.trim()
+  if (!key) {
+    return {
+      configured: false,
+      reason: "missing",
+      error: "Kunci enkripsi dokumen belum dikonfigurasi",
+    }
+  }
+
+  if (key === DOCUMENT_ENCRYPTION_KEY_PLACEHOLDER) {
+    return {
+      configured: false,
+      reason: "placeholder",
+      error: "Kunci enkripsi dokumen masih memakai placeholder",
+    }
+  }
+
+  if (key.length < DOCUMENT_ENCRYPTION_KEY_MIN_LENGTH) {
+    return {
+      configured: false,
+      reason: "short",
+      error: "Kunci enkripsi dokumen minimal 32 karakter",
+    }
+  }
+
+  return { configured: true, key }
+}
+
+export function getDocumentEncryptionKey() {
+  const status = validateDocumentEncryptionKey(env.VITE_DOCUMENT_ENCRYPTION_KEY)
+  if (!status.configured) throw new Error(status.error)
+  return status.key
+}

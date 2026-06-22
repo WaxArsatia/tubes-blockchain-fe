@@ -5,8 +5,17 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -79,14 +88,15 @@ export function AdminDashboard() {
               onValueChange={setTargetAccount}
               label="Pasien"
             />
-            <div className="grid gap-2">
-              <Label htmlFor="bpjsId">Nomor BPJS</Label>
+            <Field data-invalid={bpjsId.length > 0 && !bpjsId.trim()}>
+              <FieldLabel htmlFor="bpjsId">Nomor BPJS</FieldLabel>
               <Input
                 id="bpjsId"
                 value={bpjsId}
+                aria-invalid={bpjsId.length > 0 && !bpjsId.trim()}
                 onChange={(event) => setBpjsId(event.target.value)}
               />
-            </div>
+            </Field>
             <Button
               type="submit"
               className="self-end"
@@ -190,26 +200,78 @@ export function RoleCheckboxes({
   pendingKeys: ReadonlySet<string>
   onChange: (key: string, role: Role, active: boolean) => void
 }) {
+  const [confirmation, setConfirmation] = useState<{
+    key: string
+    role: Role
+  } | null>(null)
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <FieldGroup className="flex-row flex-wrap gap-2">
       {roles.map((role) => {
         const key = roleActionKey(account, role)
         const isPending = pendingKeys.has(key)
+        const checked = activeRoles.includes(role)
+        const checkboxId = `${key}-checkbox`
 
         return (
-          <label key={role} className="flex items-center gap-1 text-xs">
+          <Field key={role} orientation="horizontal" className="w-auto gap-1">
             <Checkbox
-              aria-label={`${roleLabel(role)} untuk ${shortAddress(account)}${isPending ? " sedang diproses" : ""}`}
-              checked={activeRoles.includes(role)}
+              id={checkboxId}
+              checked={checked}
               disabled={isPending}
-              onCheckedChange={(checked) =>
-                onChange(key, role, checked === true)
-              }
+              onCheckedChange={(nextChecked) => {
+                const active = nextChecked === true
+                if (!active && checked) {
+                  setConfirmation({ key, role })
+                  return
+                }
+                onChange(key, role, active)
+              }}
             />
-            {roleLabel(role)}
-          </label>
+            <FieldLabel htmlFor={checkboxId} className="text-xs">
+              <span className="sr-only">
+                {roleLabel(role)} untuk {shortAddress(account)}
+              </span>
+              <span aria-hidden="true">{roleLabel(role)}</span>
+            </FieldLabel>
+          </Field>
         )
       })}
-    </div>
+      <Dialog
+        open={confirmation !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmation(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nonaktifkan role?</DialogTitle>
+            <DialogDescription>
+              Role {confirmation ? roleLabel(confirmation.role) : ""} untuk{" "}
+              {shortAddress(account)} akan dinonaktifkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              Batal
+            </DialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                confirmation ? pendingKeys.has(confirmation.key) : false
+              }
+              onClick={() => {
+                if (!confirmation) return
+                onChange(confirmation.key, confirmation.role, false)
+                setConfirmation(null)
+              }}
+            >
+              Nonaktifkan role
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </FieldGroup>
   )
 }

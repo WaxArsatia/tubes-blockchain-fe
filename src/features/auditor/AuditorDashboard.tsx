@@ -3,8 +3,16 @@ import { useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -113,16 +121,17 @@ export function AuditorDashboard() {
               if (recordId) requestAccess.mutate(BigInt(recordId))
             }}
           >
-            <div className="grid gap-2">
-              <Label htmlFor="recordId">ID rekam medis</Label>
+            <Field data-invalid={recordId.length > 0 && !recordId}>
+              <FieldLabel htmlFor="recordId">ID rekam medis</FieldLabel>
               <Input
                 id="recordId"
                 min="1"
                 type="number"
                 value={recordId}
+                aria-invalid={recordId.length > 0 && !recordId}
                 onChange={(event) => setRecordId(event.target.value)}
               />
-            </div>
+            </Field>
             <Button
               type="submit"
               className="self-end"
@@ -137,16 +146,24 @@ export function AuditorDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Permintaan akses</CardTitle>
-          <select
-            className="h-8 w-fit rounded-lg border bg-background px-2 text-sm"
+          <Select
             value={status}
-            onChange={(event) => setStatus(event.target.value)}
+            onValueChange={(value) => {
+              if (value) setStatus(value)
+            }}
           >
-            <option value="all">Semua status</option>
-            <option value="pending">Menunggu</option>
-            <option value="approved">Disetujui</option>
-            <option value="revoked">Dicabut</option>
-          </select>
+            <SelectTrigger aria-label="Filter status permintaan">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all">Semua status</SelectItem>
+                <SelectItem value="pending">Menunggu</SelectItem>
+                <SelectItem value="approved">Disetujui</SelectItem>
+                <SelectItem value="revoked">Dicabut</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </CardHeader>
         <CardContent>
           {accessRequests.isLoading ? <LoadingRows /> : null}

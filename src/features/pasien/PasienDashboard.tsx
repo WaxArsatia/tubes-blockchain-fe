@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import type { Address } from "viem"
 
+import { getSharedDocumentEncryptionStatus } from "@/app/AppShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +27,8 @@ import {
   accessActionKey,
   usePendingActionKeys,
 } from "@/hooks/usePendingActionKeys"
+import type { DocumentEncryptionKeyStatus } from "@/config/env"
+import { downloadEncryptedFile, sanitizeDocumentFilename } from "@/lib/ipfs"
 import { safeDecode, shortAddress } from "@/lib/users"
 
 export function PasienDashboard({ account }: { account: Address }) {
@@ -128,12 +131,20 @@ export function PasienDashboard({ account }: { account: Address }) {
                     recordDetail.data.documents.map((document) => (
                       <div
                         key={document.cid}
-                        className="flex items-center justify-between rounded-md border p-3"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"
                       >
                         <span>{safeDecode(document.label)}</span>
-                        <Badge variant="outline">
-                          {document.cid.slice(0, 12)}...
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">
+                            {document.cid.slice(0, 12)}...
+                          </Badge>
+                          <PatientDocumentDownloadButton
+                            cid={document.cid}
+                            label={safeDecode(document.label)}
+                            encryptionStatus={getSharedDocumentEncryptionStatus()}
+                            onDownload={downloadEncryptedFile}
+                          />
+                        </div>
                       </div>
                     ))
                   )}
@@ -193,44 +204,46 @@ export function PasienDashboard({ account }: { account: Address }) {
                                 : "Menunggu"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="space-x-2">
-                          <AccessActionButtons
-                            recordId={request.recordId}
-                            requester={request.requester}
-                            isPending={isPending}
-                            pendingAction={
-                              accessActions.pendingMetadata.get(key) as
-                                | "approve"
-                                | "revoke"
-                                | undefined
-                            }
-                            onApprove={() => {
-                              void accessActions
-                                .run(
-                                  key,
-                                  () =>
-                                    approveAccess.mutateAsync({
-                                      recordId: request.recordId,
-                                      requester: request.requester,
-                                    }),
-                                  "approve"
-                                )
-                                .catch(() => undefined)
-                            }}
-                            onRevoke={() => {
-                              void accessActions
-                                .run(
-                                  key,
-                                  () =>
-                                    revokeAccess.mutateAsync({
-                                      recordId: request.recordId,
-                                      requester: request.requester,
-                                    }),
-                                  "revoke"
-                                )
-                                .catch(() => undefined)
-                            }}
-                          />
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <AccessActionButtons
+                              recordId={request.recordId}
+                              requester={request.requester}
+                              isPending={isPending}
+                              pendingAction={
+                                accessActions.pendingMetadata.get(key) as
+                                  | "approve"
+                                  | "revoke"
+                                  | undefined
+                              }
+                              onApprove={() => {
+                                void accessActions
+                                  .run(
+                                    key,
+                                    () =>
+                                      approveAccess.mutateAsync({
+                                        recordId: request.recordId,
+                                        requester: request.requester,
+                                      }),
+                                    "approve"
+                                  )
+                                  .catch(() => undefined)
+                              }}
+                              onRevoke={() => {
+                                void accessActions
+                                  .run(
+                                    key,
+                                    () =>
+                                      revokeAccess.mutateAsync({
+                                        recordId: request.recordId,
+                                        requester: request.requester,
+                                      }),
+                                    "revoke"
+                                  )
+                                  .catch(() => undefined)
+                              }}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -241,6 +254,78 @@ export function PasienDashboard({ account }: { account: Address }) {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+export function PatientDocumentDownloadButton({
+  cid,
+  label,
+  encryptionStatus,
+  onDownload,
+}: {
+  cid: string
+  label: string
+  encryptionStatus: DocumentEncryptionKeyStatus
+  onDownload: (cid: string) => Promise<Blob>
+}) {
+  const [status, setStatus] = useState(
+    encryptionStatus.configured ? "" : encryptionStatus.error
+  )
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  async function startDownload() {
+    if (!encryptionStatus.configured) {
+      setStatus(encryptionStatus.error)
+      return
+    }
+
+    setIsDownloading(true)
+    setStatus("")
+    try {
+      const blob = await onDownload(cid)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = sanitizeDocumentFilename(label)
+      link.rel = "noopener noreferrer"
+      document.body.append(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setStatus("Dokumen berhasil diunduh")
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Unduh dokumen terenkripsi gagal"
+      )
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  return (
+    <div className="grid justify-items-end gap-1">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        aria-label={`Unduh ${label}`}
+        disabled={!encryptionStatus.configured || isDownloading}
+        onClick={() => void startDownload()}
+      >
+        Unduh
+      </Button>
+      {status ? (
+        <p
+          className="text-xs text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          {status}
+        </p>
+      ) : null}
     </div>
   )
 }

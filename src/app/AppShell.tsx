@@ -4,9 +4,17 @@ import { useTransactionState } from "@/app/TransactionProvider"
 import { TransactionStatus } from "@/components/shared/TransactionStatus"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { contractAddress, env } from "@/config/env"
+import {
+  contractAddress,
+  env,
+  validateDocumentEncryptionKey,
+} from "@/config/env"
 import { roleLabel, shortAddress } from "@/lib/users"
 import type { Role } from "@/lib/users"
+
+export function getSharedDocumentEncryptionStatus() {
+  return validateDocumentEncryptionKey(env.VITE_DOCUMENT_ENCRYPTION_KEY)
+}
 
 export function AppShell({
   account,
@@ -24,7 +32,14 @@ export function AppShell({
   children: ReactNode
 }) {
   const transaction = useTransactionState()
-  const encryptionConfigured = Boolean(env.VITE_DOCUMENT_ENCRYPTION_KEY.trim())
+  const encryptionStatus = getSharedDocumentEncryptionStatus()
+  const encryptionLabel = encryptionStatus.configured
+    ? "Terkonfigurasi"
+    : encryptionStatus.reason === "placeholder"
+      ? "Kunci placeholder"
+      : encryptionStatus.reason === "short"
+        ? "Kunci terlalu pendek"
+        : "Belum dikonfigurasi"
 
   return (
     <div className="min-h-svh bg-muted/30">
@@ -46,10 +61,7 @@ export function AppShell({
           <span>Jaringan: {env.VITE_CHAIN_NAME}</span>
           <span>Kontrak: {shortAddress(contractAddress)}</span>
           <span>Peran aktif: {roleLabel(selectedRole)}</span>
-          <span>
-            Enkripsi dokumen:{" "}
-            {encryptionConfigured ? "Terkonfigurasi" : "Belum dikonfigurasi"}
-          </span>
+          <span>Enkripsi dokumen: {encryptionLabel}</span>
           <span className="text-muted-foreground">Transaksi terbaru</span>
           <TransactionStatus
             status={transaction.status}

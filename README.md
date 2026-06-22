@@ -18,7 +18,14 @@ contract address is:
 - `VITE_CONTRACT_ADDRESS`: deployed `BPJSMedicalRecords` address.
 - `VITE_IPFS_API_URL`: encrypted file upload endpoint.
 - `VITE_IPFS_GATEWAY_URL`: encrypted file download gateway.
-- `VITE_DOCUMENT_ENCRYPTION_KEY`: shared demo key for document encryption.
+- `VITE_DOCUMENT_ENCRYPTION_KEY`: required shared assignment/demo key for IPFS
+  document encryption. Use a non-placeholder value with at least 32 characters.
+  This global key protects uploaded bytes at rest in IPFS, but it is delivered
+  to browser code and is not production-grade per-user medical privacy.
+
+Production medical privacy would need a server-side key-management and
+authorization boundary, such as per-document content keys released only after a
+trusted service verifies access.
 
 ## Scripts
 

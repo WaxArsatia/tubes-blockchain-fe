@@ -28,6 +28,7 @@ const contractDir = resolveContractDir()
 const stateDir = path.join(frontendDir, "e2e", ".state")
 const anvilPrivateKey =
   "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+const fixtureDocumentKey = "fixture-local-document-key-32-chars"
 
 type Target = "local" | "real"
 
@@ -253,6 +254,83 @@ async function startInjectedWalletServer({
   }
 }
 
+function extractMultipartFile(
+  request: http.IncomingMessage,
+  body: Buffer
+): Buffer {
+  const contentType = request.headers["content-type"] ?? ""
+  const boundary = /boundary=([^;]+)/.exec(String(contentType))?.[1]
+  if (!boundary) return body
+
+  const marker = Buffer.from(`--${boundary}`)
+  const headerEnd = body.indexOf(Buffer.from("\r\n\r\n"))
+  if (headerEnd < 0) return body
+  const nextBoundary = body.indexOf(
+    Buffer.from(`\r\n--${boundary}`),
+    headerEnd + 4
+  )
+  if (nextBoundary < 0) return body.subarray(headerEnd + 4)
+  if (body.indexOf(marker) !== 0) return body
+  return body.subarray(headerEnd + 4, nextBoundary)
+}
+
+async function startIpfsFixtureServer() {
+  const documents = new Map<string, Buffer>()
+  let counter = 0
+
+  const server = http.createServer(async (request, response) => {
+    response.setHeader("access-control-allow-origin", "*")
+    response.setHeader("access-control-allow-methods", "GET, POST, OPTIONS")
+    response.setHeader("access-control-allow-headers", "content-type")
+
+    if (request.method === "OPTIONS") {
+      response.writeHead(204)
+      response.end()
+      return
+    }
+
+    if (request.method === "POST" && request.url === "/upload") {
+      const body = Buffer.from(await readRequestBody(request), "binary")
+      const cid = `bafybeigdyrztfabcdefabcdefabcdefabcdefabcdefabcde${String.fromCharCode(
+        102 + counter
+      )}`
+      counter += 1
+      documents.set(cid, extractMultipartFile(request, body))
+      response.writeHead(200, { "content-type": "application/json" })
+      response.end(JSON.stringify({ cid }))
+      return
+    }
+
+    if (request.method === "GET" && request.url?.startsWith("/ipfs/")) {
+      const cid = decodeURIComponent(request.url.slice("/ipfs/".length))
+      const document = documents.get(cid)
+      if (!document) {
+        response.writeHead(404)
+        response.end("not found")
+        return
+      }
+      response.writeHead(200, { "content-type": "application/json" })
+      response.end(document)
+      return
+    }
+
+    response.writeHead(404)
+    response.end("not found")
+  })
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const address = server.address()
+  if (!address || typeof address === "string") {
+    throw new Error("IPFS fixture server did not bind to a TCP port")
+  }
+
+  return {
+    apiUrl: `http://127.0.0.1:${address.port}/upload`,
+    gatewayUrl: `http://127.0.0.1:${address.port}/ipfs`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+}
+
 async function waitForRpc(rpcUrl: string) {
   for (let attempt = 0; attempt < 40; attempt++) {
     try {
@@ -359,6 +437,8 @@ async function main() {
       rpcUrl: state.rpcUrl,
       chainIdHex: state.chainIdHex,
     })
+    const ipfsFixture =
+      target === "local" ? await startIpfsFixtureServer() : null
 
     const { PRIVATE_KEY: _privateKey, ...safeProcessEnv } = process.env
     const testEnv = {
@@ -378,10 +458,14 @@ async function main() {
         envValues.BLOCKSCOUT_URL ?? "https://blockscout.denis.my.id",
       VITE_CONTRACT_ADDRESS: state.contractAddress,
       VITE_IPFS_API_URL:
-        envValues.IPFS_API_URL ?? "https://ipfs-api.denis.my.id",
+        ipfsFixture?.apiUrl ??
+        envValues.IPFS_API_URL ??
+        "https://ipfs-api.denis.my.id",
       VITE_IPFS_GATEWAY_URL:
-        envValues.IPFS_GATEWAY_URL ?? "https://ipfs-gateway.denis.my.id/ipfs",
-      VITE_DOCUMENT_ENCRYPTION_KEY: "e2e-document-key",
+        ipfsFixture?.gatewayUrl ??
+        envValues.IPFS_GATEWAY_URL ??
+        "https://ipfs-gateway.denis.my.id/ipfs",
+      VITE_DOCUMENT_ENCRYPTION_KEY: fixtureDocumentKey,
     }
 
     const playwrightArgs = ["playwright", "test", `--project=wallet-${target}`]
@@ -391,6 +475,7 @@ async function main() {
       await runAsync("bunx", playwrightArgs, testEnv)
     } finally {
       await injectedWallet.close()
+      await ipfsFixture?.close()
     }
   } finally {
     stopAnvil()
