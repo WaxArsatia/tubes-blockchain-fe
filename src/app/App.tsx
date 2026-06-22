@@ -120,7 +120,7 @@ export function App() {
     ) : selectedRole === "pasien" ? (
       <PasienDashboard account={wallet.account} />
     ) : selectedRole === "auditor" ? (
-      <AuditorDashboard />
+      <AuditorDashboard account={wallet.account} />
     ) : null
 
   return (

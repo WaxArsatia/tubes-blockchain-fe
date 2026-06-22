@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react"
+import type { Address } from "viem"
 
+import { getSharedDocumentEncryptionStatus } from "@/app/AppShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,20 +26,25 @@ import {
 import { EmptyState, LoadingRows } from "@/components/shared/StateViews"
 import {
   useAccessRequests,
+  useMedicalRecord,
   useRequestRecordAccess,
   useUsers,
 } from "@/hooks/useBpjsContract"
+import { PatientDocumentDownloadButton } from "@/features/pasien/PasienDashboard"
+import { downloadEncryptedFile } from "@/lib/ipfs"
 import { roleLabel, safeDecode, shortAddress } from "@/lib/users"
 import type { Role } from "@/lib/users"
 
 const roles: Role[] = ["admin", "faskes", "pasien", "auditor"]
 
-export function AuditorDashboard() {
+export function AuditorDashboard({ account }: { account: Address }) {
   const users = useUsers()
   const accessRequests = useAccessRequests()
   const requestAccess = useRequestRecordAccess()
   const [recordId, setRecordId] = useState("")
   const [status, setStatus] = useState("all")
+  const [selectedRecord, setSelectedRecord] = useState<bigint | null>(null)
+  const recordDetail = useMedicalRecord(selectedRecord, account)
 
   const stats = useMemo(() => {
     const allUsers = users.data ?? []
@@ -79,6 +86,17 @@ export function AuditorDashboard() {
     }
     return requests
   }, [accessRequests.data, status])
+
+  const canOpenRecord = (request: {
+    requester: Address
+    patientApproved: boolean
+    faskesApproved: boolean
+    revoked: boolean
+  }) =>
+    request.requester.toLowerCase() === account.toLowerCase() &&
+    request.patientApproved &&
+    request.faskesApproved &&
+    !request.revoked
 
   return (
     <div className="grid gap-4">
@@ -143,81 +161,174 @@ export function AuditorDashboard() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Permintaan akses</CardTitle>
-          <Select
-            value={status}
-            onValueChange={(value) => {
-              if (value) setStatus(value)
-            }}
-          >
-            <SelectTrigger aria-label="Filter status permintaan">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="all">Semua status</SelectItem>
-                <SelectItem value="pending">Menunggu</SelectItem>
-                <SelectItem value="approved">Disetujui</SelectItem>
-                <SelectItem value="revoked">Dicabut</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent>
-          {accessRequests.isLoading ? <LoadingRows /> : null}
-          {filteredRequests.length === 0 && !accessRequests.isLoading ? (
-            <EmptyState
-              title="Belum ada data"
-              description="Permintaan akses yang tercatat kontrak tampil di sini."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Record</TableHead>
-                    <TableHead>Pasien</TableHead>
-                    <TableHead>Faskes</TableHead>
-                    <TableHead>Requester</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRequests.map((request) => (
-                    <TableRow key={`${request.recordId}-${request.requester}`}>
-                      <TableCell>{safeDecode(request.recordLabel)}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {shortAddress(request.patient)}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {shortAddress(request.faskes)}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {shortAddress(request.requester)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            request.revoked ? "destructive" : "secondary"
-                          }
-                        >
-                          {request.revoked
-                            ? "Dicabut"
-                            : request.patientApproved && request.faskesApproved
-                              ? "Disetujui"
-                              : "Menunggu"}
-                        </Badge>
-                      </TableCell>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Permintaan akses</CardTitle>
+            <Select
+              value={status}
+              onValueChange={(value) => {
+                if (value) setStatus(value)
+              }}
+            >
+              <SelectTrigger aria-label="Filter status permintaan">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">Semua status</SelectItem>
+                  <SelectItem value="pending">Menunggu</SelectItem>
+                  <SelectItem value="approved">Disetujui</SelectItem>
+                  <SelectItem value="revoked">Dicabut</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            {accessRequests.isLoading ? <LoadingRows /> : null}
+            {filteredRequests.length === 0 && !accessRequests.isLoading ? (
+              <EmptyState
+                title="Belum ada data"
+                description="Permintaan akses yang tercatat kontrak tampil di sini."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Record</TableHead>
+                      <TableHead>Pasien</TableHead>
+                      <TableHead>Faskes</TableHead>
+                      <TableHead>Requester</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Aksi</TableHead>
                     </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRequests.map((request) => (
+                      <TableRow
+                        key={`${request.recordId}-${request.requester}`}
+                      >
+                        <TableCell>{safeDecode(request.recordLabel)}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {shortAddress(request.patient)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {shortAddress(request.faskes)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {shortAddress(request.requester)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              request.revoked ? "destructive" : "secondary"
+                            }
+                          >
+                            {request.revoked
+                              ? "Dicabut"
+                              : request.patientApproved &&
+                                  request.faskesApproved
+                                ? "Disetujui"
+                                : "Menunggu"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {canOpenRecord(request) ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={
+                                selectedRecord === request.recordId
+                                  ? "default"
+                                  : "outline"
+                              }
+                              aria-label={`Buka detail rekam medis ${request.recordId}`}
+                              onClick={() => setSelectedRecord(request.recordId)}
+                            >
+                              Buka
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              -
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Detail rekam medis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!selectedRecord ? (
+              <EmptyState
+                title="Pilih akses disetujui"
+                description="Rekam medis dan dokumen tampil setelah akses auditor disetujui."
+              />
+            ) : recordDetail.isLoading ? (
+              <LoadingRows rows={4} />
+            ) : recordDetail.data ? (
+              <div className="grid gap-4">
+                <div>
+                  <h3 className="font-medium">
+                    {safeDecode(recordDetail.data.label)}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Pasien {shortAddress(recordDetail.data.patient)} · Faskes{" "}
+                    {shortAddress(recordDetail.data.faskes)}
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  {recordDetail.data.fields.map((field) => (
+                    <div key={field.label} className="rounded-md border p-3">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {safeDecode(field.label)}
+                      </div>
+                      <div>{safeDecode(field.value) || "-"}</div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+                <div className="grid gap-2">
+                  <h4 className="font-medium">Dokumen terenkripsi</h4>
+                  {recordDetail.data.documents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Belum ada dokumen.
+                    </p>
+                  ) : (
+                    recordDetail.data.documents.map((document) => (
+                      <div
+                        key={document.cid}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"
+                      >
+                        <span>{safeDecode(document.label)}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">
+                            {document.cid.slice(0, 12)}...
+                          </Badge>
+                          <PatientDocumentDownloadButton
+                            cid={document.cid}
+                            label={safeDecode(document.label)}
+                            encryptionStatus={getSharedDocumentEncryptionStatus()}
+                            onDownload={downloadEncryptedFile}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
