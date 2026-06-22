@@ -31,6 +31,25 @@ import type { DocumentEncryptionKeyStatus } from "@/config/env"
 import { downloadEncryptedFile, sanitizeDocumentFilename } from "@/lib/ipfs"
 import { safeDecode, shortAddress } from "@/lib/users"
 
+const mimeExtensions: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+}
+
+function fileExtension(value: string) {
+  return /\.[A-Za-z0-9]{1,8}$/.exec(value)?.[0] ?? ""
+}
+
+function downloadFilename(label: string, blob: Blob) {
+  const sanitizedLabel = sanitizeDocumentFilename(label)
+  if (fileExtension(sanitizedLabel)) return sanitizedLabel
+
+  const sourceName = blob instanceof File ? blob.name : ""
+  const extension = fileExtension(sourceName) || mimeExtensions[blob.type] || ""
+  return `${sanitizedLabel}${extension}`
+}
+
 export function PasienDashboard({ account }: { account: Address }) {
   const records = usePatientRecords(account)
   const accessRequests = useAccessRequests()
@@ -287,7 +306,7 @@ export function PatientDocumentDownloadButton({
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = sanitizeDocumentFilename(label)
+      link.download = downloadFilename(label, blob)
       link.rel = "noopener noreferrer"
       document.body.append(link)
       link.click()

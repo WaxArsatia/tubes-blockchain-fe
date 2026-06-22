@@ -5,6 +5,8 @@ export type EncryptedEnvelope = {
   salt: string
   iv: string
   ciphertext: string
+  fileName?: string
+  mimeType?: string
 }
 
 const encoder = new TextEncoder()
@@ -128,7 +130,10 @@ export function envelopeFromText(value: string): EncryptedEnvelope {
     typeof parsed !== "object" ||
     Array.isArray(parsed) ||
     Object.keys(parsed).some(
-      (key) => !["version", "salt", "iv", "ciphertext"].includes(key)
+      (key) =>
+        !["version", "salt", "iv", "ciphertext", "fileName", "mimeType"].includes(
+          key
+        )
     )
   ) {
     throw new Error(envelopeError)
@@ -140,7 +145,9 @@ export function envelopeFromText(value: string): EncryptedEnvelope {
     typeof envelope.salt !== "string" ||
     typeof envelope.iv !== "string" ||
     typeof envelope.ciphertext !== "string" ||
-    envelope.ciphertext.length === 0
+    envelope.ciphertext.length === 0 ||
+    (envelope.fileName !== undefined && typeof envelope.fileName !== "string") ||
+    (envelope.mimeType !== undefined && typeof envelope.mimeType !== "string")
   ) {
     throw new Error(envelopeError)
   }
@@ -156,6 +163,8 @@ export function envelopeFromText(value: string): EncryptedEnvelope {
     salt: envelope.salt,
     iv: envelope.iv,
     ciphertext: envelope.ciphertext,
+    ...(envelope.fileName ? { fileName: envelope.fileName } : {}),
+    ...(envelope.mimeType ? { mimeType: envelope.mimeType } : {}),
   }
 }
 

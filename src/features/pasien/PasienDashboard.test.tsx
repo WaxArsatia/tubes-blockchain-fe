@@ -54,6 +54,37 @@ describe("PatientDocumentDownloadButton", () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:document")
   })
 
+  it("keeps the original file extension when the document label has no extension", async () => {
+    const appendedLinks: HTMLAnchorElement[] = []
+    vi.spyOn(document.body, "append").mockImplementation((...nodes) => {
+      appendedLinks.push(
+        ...nodes.filter(
+          (node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement
+        )
+      )
+    })
+    const download = vi.fn().mockResolvedValue(
+      new File([new Uint8Array([37, 80, 68, 70])], "hasil-lab.pdf", {
+        type: "application/pdf",
+      })
+    )
+
+    render(
+      <PatientDocumentDownloadButton
+        cid="bafybeigdyrztfabcdefabcdefabcdefabcdefabcdefabcdef"
+        label="Hasil lab"
+        encryptionStatus={{ configured: true, key: validKey }}
+        onDownload={download}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Unduh Hasil lab" }))
+    })
+
+    expect(appendedLinks[0]?.download).toBe("Hasil-lab.pdf")
+  })
+
   it("fails closed when the shared key is missing", () => {
     const download = vi.fn()
 

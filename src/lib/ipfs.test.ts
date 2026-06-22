@@ -166,6 +166,25 @@ describe("IPFS encrypted document boundary", () => {
     expect(await (uploaded as File).text()).not.toContain("plaintext")
   })
 
+  it("stores original document metadata in the encrypted envelope", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ cid: validCid }), {
+        status: 200,
+      })
+    )
+
+    await uploadEncryptedFile(
+      fileFromBytes(new TextEncoder().encode("%PDF-1.7"), "klaim.pdf")
+    )
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]
+    const envelope = JSON.parse(
+      await ((init?.body as FormData).get("file") as File).text()
+    ) as Record<string, unknown>
+    expect(envelope.fileName).toBe("klaim.pdf")
+    expect(envelope.mimeType).toBe("application/pdf")
+  })
+
   it("posts uploads to the Kubo add route when configured with the IPFS API origin", async () => {
     env.VITE_IPFS_API_URL = "https://ipfs-api.denis.my.id"
     vi.mocked(fetch).mockResolvedValue(
@@ -222,4 +241,29 @@ describe("IPFS encrypted document boundary", () => {
 
     expect(await blob.text()).toBe("hasil lab")
   })
+
+  it("restores file type and name metadata when downloading new encrypted documents", async () => {
+    const { encryptBytes, envelopeToBytes } = await import("./crypto")
+    const encrypted = await encryptBytes(
+      new TextEncoder().encode("%PDF-1.7"),
+      validKey
+    )
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        envelopeToBytes({
+          ...encrypted,
+          fileName: "klaim.pdf",
+          mimeType: "application/pdf",
+        }),
+        { status: 200 }
+      )
+    )
+
+    const blob = await downloadEncryptedFile(validCid)
+
+    expect(blob).toBeInstanceOf(File)
+    expect(blob.type).toBe("application/pdf")
+    expect((blob as File).name).toBe("klaim.pdf")
+  })
+
 })

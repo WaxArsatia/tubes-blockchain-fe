@@ -163,9 +163,18 @@ export async function uploadEncryptedFile(file: File) {
     new Uint8Array(await file.arrayBuffer()),
     key
   )
-  const blob = new Blob([envelopeToBytes(encrypted)], {
+  const blob = new Blob(
+    [
+      envelopeToBytes({
+        ...encrypted,
+        fileName: sanitizeDocumentFilename(file.name),
+        mimeType: file.type,
+      }),
+    ],
+    {
     type: "application/json",
-  })
+    }
+  )
   const body = new FormData()
   body.append("file", blob, "document-envelope.json")
 
@@ -194,12 +203,16 @@ export async function downloadEncryptedFile(cid: string) {
 
   try {
     const bytes = await decryptBytes(envelope, key)
-    return new Blob([
-      bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength
-      ) as ArrayBuffer,
-    ])
+    const content = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength
+    ) as ArrayBuffer
+    if (envelope.fileName) {
+      return new File([content], envelope.fileName, {
+        type: envelope.mimeType ?? "",
+      })
+    }
+    return new Blob([content], { type: envelope.mimeType ?? "" })
   } catch {
     throw new Error("Dekripsi dokumen IPFS gagal")
   }
